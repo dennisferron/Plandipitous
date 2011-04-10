@@ -1,6 +1,7 @@
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/r_c_shortest_paths.hpp>
+#include <boost/shared_ptr.hpp>
 using namespace boost;
 
 #include <set>
@@ -10,7 +11,6 @@ using namespace std;
 
 namespace Plandipitous
 {
-
 
 struct VertProp
 {
@@ -29,6 +29,8 @@ struct ArcProp
 typedef adjacency_list<
     vecS,vecS,directedS,VertProp,ArcProp
 > GraphType;
+
+typedef GraphType::vertex_descriptor vertex_descriptor;
 
 
 // ResourceContainer model
@@ -67,7 +69,13 @@ bool operator<( const ResourceContainer& a,
 // ResourceExtensionFunction model
 class ResourceExtensionFunction
 {
+private:
+    vertex_descriptor goal;
+    shared_ptr<bool> reached_goal;
+
 public:
+    ResourceExtensionFunction(vertex_descriptor goal_) : goal(goal_), reached_goal(new bool) {}
+
     inline bool operator()( const GraphType& g,
                             ResourceContainer& new_cont,
                             const ResourceContainer& old_cont,
@@ -84,10 +92,15 @@ public:
         new_cont.time = old_cont.time + 1;
         new_cont.cost = old_cont.cost + arc_prop.arc_cost;
 
-        std::cout << "Time " << new_cont.time << " cost " << old_cont.cost << " -> " << new_cont.cost << std::endl;
+        std::cout << "Time " << new_cont.time << " cost " << old_cont.cost << " + " << arc_prop.arc_cost << " => " << new_cont.cost << std::endl;
 
         // TODO:  Return true iff the extension is feasible.
-        return new_cont.cost <= vert_prop.max_cost && new_cont.cost >= vert_prop.min_cost;
+        bool feasible = new_cont.cost <= vert_prop.max_cost && new_cont.cost >= vert_prop.min_cost;
+
+        if (feasible && target(ed,g) == goal)
+            return *reached_goal = true;
+        else
+            return feasible && !*reached_goal;
     }
 };
 
@@ -161,7 +174,7 @@ void do_test_2()
     opt_solutions_spptw,
     pareto_opt_rcs_spptw,
     ResourceContainer( 0, 0 ),
-    ResourceExtensionFunction(),
+    ResourceExtensionFunction(goal),
     DominanceFunction(),
     std::allocator
       <r_c_shortest_paths_label
@@ -195,7 +208,7 @@ void do_test_2()
                   true,
                   pareto_opt_rcs_spptw[0],
                   actual_final_resource_levels,
-                  ResourceExtensionFunction(),
+                  ResourceExtensionFunction(goal),
                   b_is_a_path_at_all,
                   b_feasible,
                   b_correctly_extended,
