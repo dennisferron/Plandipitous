@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_workspace_file>
+	<Workspace title="Workspace">
+		<Project filename="Plandipitous-Windows.cbp" />
+		<Project filename="Plandipitous-Demo-Windows.cbp" active="1">
+			<Depends filename="Plandipitous-Windows.cbp" />
+		</Project>
+	</Workspace>
+</CodeBlocks_workspace_file>
