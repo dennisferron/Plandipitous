@@ -7,23 +7,24 @@ using namespace boost;
 #include <set>
 #include <vector>
 #include <iostream>
+#include <string>
 using namespace std;
 
 namespace Plandipitous
 {
 
+
 struct VertProp
 {
-    VertProp() : min_cost(0), max_cost(0) {}
-    VertProp(int min, int max) : min_cost(min), max_cost(max) {}
-    int min_cost;
-    int max_cost;
+    VertProp(string site_name_="", bool is_wall_site_=false) : site_name(site_name_), is_wall_site(is_wall_site_) {}
+    string site_name;
+    bool is_wall_site;
 };
 
 struct ArcProp
 {
-    ArcProp(int cost) : arc_cost(cost) {}
-    int arc_cost;
+    ArcProp(bool is_build_action_=false) : is_build_action(is_build_action_) {}
+    bool is_build_action;
 };
 
 typedef adjacency_list<
@@ -37,9 +38,9 @@ typedef GraphType::vertex_descriptor vertex_descriptor;
 struct ResourceContainer
 {
     int time;
-    int cost;
+    bool wall_is_built;
 
-    ResourceContainer(int time_, int cost_) : time(time_), cost(cost_) {}
+    ResourceContainer(int time_, bool wall_is_built_) : time(time_), wall_is_built(wall_is_built_) {}
 
     ResourceContainer& operator=( const ResourceContainer& other )
     {
@@ -55,7 +56,7 @@ bool operator==( const ResourceContainer& a,
                  const ResourceContainer& b )
 {
     // TODO:  Return true iff all the resources in container 1 equal container 2.
-    return (a.time == b.time) && (a.cost == b.cost);
+    return (a.time == b.time) && (a.wall_is_built == b.wall_is_built);
 }
 
 bool operator<( const ResourceContainer& a,
@@ -63,7 +64,7 @@ bool operator<( const ResourceContainer& a,
 {
     // TODO:  Impose a total ordering on resource containers.  That is,
     // if resource X is the same, check resource Y, and so forth.
-    return a.time == b.time? a.cost < b.cost : a.time < b.time;
+    return a.time == b.time? a.wall_is_built < b.wall_is_built : a.time < b.time;
 }
 
 // ResourceExtensionFunction model
@@ -90,17 +91,23 @@ public:
         // function is using the <= operator to look for lower resource consumptions.)
 
         new_cont.time = old_cont.time + 1;
-        new_cont.cost = old_cont.cost + arc_prop.arc_cost;
+        new_cont.wall_is_built |= arc_prop.is_build_action;
 
-        std::cout << "Time " << new_cont.time << " cost " << old_cont.cost << " + " << arc_prop.arc_cost << " => " << new_cont.cost << std::endl;
+        if (arc_prop.is_build_action)
+            std::cout << "Time " << new_cont.time << " building wall " << vert_prop.site_name << std::endl;
 
         // TODO:  Return true iff the extension is feasible.
-        bool feasible = new_cont.cost <= vert_prop.max_cost && new_cont.cost >= vert_prop.min_cost;
+        bool feasible = !vert_prop.is_wall_site || !new_cont.wall_is_built;
 
-        if (feasible && target(ed,g) == goal)
-            return *reached_goal = true;
-        else
-            return feasible && !*reached_goal;
+        // Don't allow goal state to be reached until the wall is built.
+        if (target(ed,g) == goal && !new_cont.wall_is_built)
+            feasible = false;
+
+        //if (feasible && target(ed,g) == goal)
+        //    return *reached_goal = true;
+        //else
+        //    return feasible && !*reached_goal;
+        return feasible;
     }
 };
 
@@ -114,9 +121,7 @@ public:
 
     // TODO:  Return true if all the resources in container 1 are <= to container 2.
     // (Or == for nominal (non-numeric) properties.)
-    bool dominated = res_cont_1.time <= res_cont_2.time && res_cont_1.cost == res_cont_2.cost ;
-
-    std::cout << "time: " << res_cont_1.time << "/" << res_cont_2.time << " cost: " << res_cont_1.cost << "/" << res_cont_2.cost << std::endl;
+    bool dominated = res_cont_1.time <= res_cont_2.time && res_cont_1.wall_is_built == res_cont_2.wall_is_built ;
 
     return dominated;
 
@@ -143,22 +148,22 @@ void do_test_2()
 
     typedef GraphType::vertex_descriptor vd;
 
-    vd start = add_vertex( VertProp(-20,20), g );
-    vd node3 = add_vertex( VertProp(-20,20), g );
-    vd node5 = add_vertex( VertProp(-20,20), g );
-    vd goal =  add_vertex( VertProp(2,2), g );
+    vd start = add_vertex( VertProp("start"), g );
+    vd before = add_vertex( VertProp("before wall site"), g );
+    vd middle = add_vertex( VertProp("wall site", true), g );
+    vd after = add_vertex( VertProp("after wall site"), g );
+    vd goal = add_vertex( VertProp("goal"), g );
 
     typedef GraphType::edge_descriptor ed;
 
-    add_edge( start, node3, ArcProp(3), g );
-    add_edge( start, node3, ArcProp(-3), g );
-    add_edge( node3, start, ArcProp(0), g );
+    add_edge( start, middle, ArcProp(), g );
+    add_edge( middle, goal, ArcProp(), g);
 
-    add_edge( start, node5, ArcProp(5), g );
-    add_edge( start, node5, ArcProp(-5), g );
-    add_edge( node5, start, ArcProp(0), g );
+    add_edge( start, before, ArcProp(true), g );
+    add_edge( before, start, ArcProp(), g );
 
-    add_edge( start, goal, ArcProp(0), g );
+    add_edge( middle, after, ArcProp(true), g );
+    add_edge( after, goal, ArcProp(), g );
 
   std::vector< std::vector<ed> > opt_solutions;
 
@@ -191,7 +196,6 @@ void do_test_2()
          j >= 0;
          --j )
         std::cout << source( opt_solutions_spptw[i][j], g ) << std::endl;
-    std::cout << "cost: " << pareto_opt_rcs_spptw[i].cost << std::endl;
     std::cout << "time: " << pareto_opt_rcs_spptw[i].time << std::endl;
   }
 
@@ -222,7 +226,6 @@ void do_test_2()
   if( b_is_a_path_at_all && b_feasible && b_correctly_extended )
   {
     std::cout << "Actual final resource levels:" << std::endl;
-    std::cout << "Cost: " << actual_final_resource_levels.cost << std::endl;
     std::cout << "Time: " << actual_final_resource_levels.time << std::endl;
     std::cout << "OK." << std::endl;
   }
